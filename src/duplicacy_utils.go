@@ -167,6 +167,10 @@ func GenerateKeyFromPassword(password string, salt []byte, iterations int) []byt
 	cfg.Parallelism = 2
 	if salt == nil && iterations == 0 {
 		passLen := len([]byte(password))
+		if passLen < 64+32 {
+			LOG_ERROR("CONFIG_PASSWORD", "The password must be at least 96 characters")
+			os.Exit(1)
+		}
 		saltLen := 32
 		cfg.TimeCost = 8
 		raw, err := cfg.Hash([]byte(password)[:passLen-saltLen], []byte(password)[passLen-saltLen:])

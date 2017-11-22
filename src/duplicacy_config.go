@@ -393,7 +393,7 @@ func UploadConfig(storage Storage, config *Config, password string, iterations i
 	if len(password) > 0 {
 
 		if len(password) < 64 {
-			LOG_ERROR("CONFIG_PASSWORD", "The password must be at least 8 characters")
+			LOG_ERROR("CONFIG_PASSWORD", "The password must be at least 64 characters")
 			return false
 		}
 
