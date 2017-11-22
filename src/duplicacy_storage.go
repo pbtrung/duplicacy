@@ -560,6 +560,19 @@ func CreateStorage(preference Preference, resetPassword bool, threads int) (stor
 		}
 		SavePassword(preference, "hubic_token", tokenFile)
 		return hubicStorage
+	} else if matched[1] == "sia" {
+		// sia://localhost:9980/test
+		// matched[1]: sia
+		// matched[2]:
+		// matched[3]: localhost:9980
+		// matched[4]: /test
+		// matched[5]: test
+		siaStorage, err := CreateSIAStorage(matched[5], api.NewClient(matched[3], ""))
+		if err != nil {
+			LOG_ERROR("STORAGE_CREATE", "Failed to load the Sia storage at %s: %v", storageURL, err)
+			return nil
+		}
+		return siaStorage
 	} else {
 		LOG_ERROR("STORAGE_CREATE", "The storage type '%s' is not supported", matched[1])
 		return nil
