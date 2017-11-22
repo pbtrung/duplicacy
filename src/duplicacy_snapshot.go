@@ -5,7 +5,7 @@
 package duplicacy
 
 import (
-	"encoding/hex"
+	"github.com/tv42/zbase32"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -176,7 +176,7 @@ func LoadIncompleteSnapshot() (snapshot *Snapshot) {
 
 	var chunkHashes []string
 	for _, chunkHash := range incompleteSnapshot.ChunkHashes {
-		hash, err := hex.DecodeString(chunkHash)
+		hash, err := zbase32.DecodeString(chunkHash)
 		if err != nil {
 			LOG_DEBUG("INCOMPLETE_DECODE", "Failed to decode incomplete snapshot: %v", err)
 			return nil
@@ -207,7 +207,7 @@ func SaveIncompleteSnapshot(snapshot *Snapshot) {
 	}
 	var chunkHashes []string
 	for _, chunkHash := range snapshot.ChunkHashes {
-		chunkHashes = append(chunkHashes, hex.EncodeToString([]byte(chunkHash)))
+		chunkHashes = append(chunkHashes, zbase32.EncodeToString([]byte(chunkHash)))
 	}
 
 	incompleteSnapshot := IncompleteSnapshot{
@@ -319,7 +319,7 @@ func CreateSnapshotFromDescription(description []byte) (snapshot *Snapshot, err 
 			for i := 0; i < len(array); i++ {
 				if hashInHex, ok := array[i].(string); !ok {
 					return nil, fmt.Errorf("Invalid file sequence is specified in the snapshot")
-				} else if hash, err := hex.DecodeString(hashInHex); err != nil {
+				} else if hash, err := zbase32.DecodeString(hashInHex); err != nil {
 					return nil, fmt.Errorf("Hash %s is not a valid hex string in the snapshot", hashInHex)
 				} else {
 					sequence[i] = string(hash)
@@ -347,7 +347,7 @@ func (snapshot *Snapshot) LoadChunks(description []byte) (err error) {
 	for i, object := range root {
 		if hashInHex, ok := object.(string); !ok {
 			return fmt.Errorf("Invalid chunk hash is specified in the snapshot")
-		} else if hash, err := hex.DecodeString(hashInHex); err != nil {
+		} else if hash, err := zbase32.DecodeString(hashInHex); err != nil {
 			return fmt.Errorf("The chunk hash %s is not a valid hex string", hashInHex)
 		} else {
 			snapshot.ChunkHashes[i] = string(hash)
@@ -414,7 +414,7 @@ func encodeSequence(sequence []string) []string {
 	sequenceInHex := make([]string, len(sequence))
 
 	for i, hash := range sequence {
-		sequenceInHex[i] = hex.EncodeToString([]byte(hash))
+		sequenceInHex[i] = zbase32.EncodeToString([]byte(hash))
 	}
 
 	return sequenceInHex

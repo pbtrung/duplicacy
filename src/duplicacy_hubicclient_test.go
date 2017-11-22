@@ -6,7 +6,7 @@ package duplicacy
 
 import (
 	"crypto/sha256"
-	"encoding/hex"
+	"github.com/tv42/zbase32"
 	"fmt"
 	"io"
 	"testing"
@@ -82,7 +82,7 @@ func TestHubicClient(t *testing.T) {
 
 		hasher := sha256.New()
 		hasher.Write(content)
-		filename := hex.EncodeToString(hasher.Sum(nil))
+		filename := zbase32.EncodeToString(hasher.Sum(nil))
 
 		fmt.Printf("file: %s\n", filename)
 
@@ -128,7 +128,7 @@ func TestHubicClient(t *testing.T) {
 
 		hasher := sha256.New()
 		io.Copy(hasher, readCloser)
-		hash := hex.EncodeToString(hasher.Sum(nil))
+		hash := zbase32.EncodeToString(hasher.Sum(nil))
 
 		if hash != entry.Name {
 			t.Errorf("File %s, hash %s", entry.Name, hash)

@@ -6,7 +6,7 @@ package duplicacy
 
 import (
 	"crypto/sha256"
-	"encoding/hex"
+	"github.com/tv42/zbase32"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -426,7 +426,7 @@ func TestStorage(t *testing.T) {
 
 		hasher := sha256.New()
 		hasher.Write(content)
-		chunkID := hex.EncodeToString(hasher.Sum(nil))
+		chunkID := zbase32.EncodeToString(hasher.Sum(nil))
 		chunks = append(chunks, chunkID)
 
 		filePath, exist, _, err := storage.FindChunk(0, chunkID, false)
@@ -478,7 +478,7 @@ func TestStorage(t *testing.T) {
 
 		hasher := sha256.New()
 		hasher.Write(chunk.GetBytes())
-		hash := hex.EncodeToString(hasher.Sum(nil))
+		hash := zbase32.EncodeToString(hasher.Sum(nil))
 
 		if hash != chunkID {
 			t.Errorf("File %s, hash %s, size %d", chunkID, hash, chunk.GetBytes())

@@ -6,17 +6,19 @@ package duplicacy
 
 import (
 	"bytes"
-	"compress/zlib"
-	"crypto/aes"
 	"crypto/cipher"
 	"crypto/rand"
-	"encoding/hex"
+	"crypto/sha512"
 	"fmt"
 	"hash"
-	"io"
 	"runtime"
 
-	"github.com/bkaradzic/go-lz4"
+	"github.com/aead/skein"
+	"github.com/aead/skein/threefish"
+	"github.com/lhecker/argon2"
+	"github.com/pbtrung/zstd"
+	"github.com/tv42/zbase32"
+	"golang.org/x/crypto/pbkdf2"
 )
 
 // A chunk needs to acquire a new buffer and return the old one for every encrypt/decrypt operation, therefore
@@ -145,9 +147,8 @@ func (chunk *Chunk) GetID() string {
 			chunk.hash = chunk.hasher.Sum(nil)
 		}
 
-		hasher := chunk.config.NewKeyedHasher(chunk.config.IDKey)
-		hasher.Write([]byte(chunk.hash))
-		chunk.id = hex.EncodeToString(hasher.Sum(nil))
+		id := pbkdf2.Key(chunk.config.IDKey, []byte(chunk.hash), 13, 64, sha512.New)
+		chunk.id = zbase32.EncodeToString(id)
 	}
 
 	return chunk.id
@@ -157,22 +158,57 @@ func (chunk *Chunk) VerifyID() {
 	hasher := chunk.config.NewKeyedHasher(chunk.config.HashKey)
 	hasher.Write(chunk.buffer.Bytes())
 	hash := hasher.Sum(nil)
-	hasher = chunk.config.NewKeyedHasher(chunk.config.IDKey)
-	hasher.Write([]byte(hash))
-	chunkID := hex.EncodeToString(hasher.Sum(nil))
+	id := pbkdf2.Key(chunk.config.IDKey, []byte(hash), 13, 64, sha512.New)
+	chunkID := zbase32.EncodeToString(id)
 	if chunkID != chunk.GetID() {
 		LOG_ERROR("CHUNK_ID", "The chunk id should be %s instead of %s, length: %d", chunkID, chunk.GetID(), len(chunk.buffer.Bytes()))
 	}
+}
+
+func threefishCTR(encryptionKey []byte, salt []byte, src []byte, enc bool) (dst []byte, skienMac []byte, err error) {
+	cfg := argon2.DefaultConfig()
+	cfg.HashLength = threefish.BlockSize1024 + threefish.TweakSize + threefish.BlockSize512 + threefish.BlockSize1024
+	cfg.TimeCost = 4
+	cfg.MemoryCost = 1 << 15
+	cfg.Parallelism = 2
+	raw, err := cfg.Hash(encryptionKey, salt)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	var t3fTweak [threefish.TweakSize]byte
+	copy(t3fTweak[:], raw.Hash[threefish.BlockSize1024:threefish.BlockSize1024+threefish.TweakSize])
+	t3f, err := threefish.NewCipher(&t3fTweak, raw.Hash[:threefish.BlockSize1024])
+	if err != nil {
+		return nil, nil, err
+	}
+
+	// Encrypt it.
+	iv := raw.Hash[threefish.BlockSize1024+threefish.TweakSize+threefish.BlockSize512:]
+	stream := cipher.NewCTR(t3f, iv)
+	dst = make([]byte, len(src))
+	stream.XORKeyStream(dst, src)
+
+	skeinMacKey := raw.Hash[threefish.BlockSize1024+threefish.TweakSize : threefish.BlockSize1024+threefish.TweakSize+threefish.BlockSize512]
+	hasher := skein.New(64, &skein.Config{Key: skeinMacKey, Personal: PERSONALIZATION})
+	hasher.Write([]byte(ENCRYPTION_HEADER))
+	hasher.Write(salt)
+	if enc {
+		hasher.Write(dst)
+	} else {
+		hasher.Write(src)
+	}
+	skienMac = hasher.Sum(nil)
+
+	return dst, skienMac, nil
 }
 
 // Encrypt encrypts the plain data stored in the chunk buffer.  If derivationKey is not nil, the actual
 // encryption key will be HMAC-SHA256(encryptionKey, derivationKey).
 func (chunk *Chunk) Encrypt(encryptionKey []byte, derivationKey string) (err error) {
 
-	var aesBlock cipher.Block
-	var gcm cipher.AEAD
-	var nonce []byte
-	var offset int
+	var salt []byte
+	var key []byte
 
 	encryptedBuffer := AllocateChunkBuffer()
 	encryptedBuffer.Reset()
@@ -182,89 +218,44 @@ func (chunk *Chunk) Encrypt(encryptionKey []byte, derivationKey string) (err err
 
 	if len(encryptionKey) > 0 {
 
-		key := encryptionKey
+		key = encryptionKey
 
 		if len(derivationKey) > 0 {
-			hasher := chunk.config.NewKeyedHasher([]byte(derivationKey))
-			hasher.Write(encryptionKey)
-			key = hasher.Sum(nil)
-		}
-
-		aesBlock, err = aes.NewCipher(key)
-		if err != nil {
-			return err
-		}
-
-		gcm, err = cipher.NewGCM(aesBlock)
-		if err != nil {
-			return err
+			key = pbkdf2.Key(encryptionKey, []byte(derivationKey), 100, 128, sha512.New)
 		}
 
 		// Start with the magic number and the version number.
 		encryptedBuffer.Write([]byte(ENCRYPTION_HEADER))
 
 		// Followed by the nonce
-		nonce = make([]byte, gcm.NonceSize())
-		_, err := rand.Read(nonce)
+		salt = make([]byte, 32)
+		_, err := rand.Read(salt)
 		if err != nil {
 			return err
 		}
-		encryptedBuffer.Write(nonce)
-		offset = encryptedBuffer.Len()
-
+		encryptedBuffer.Write(salt)
 	}
 
-	// offset is either 0 or the length of header + nonce
-
-	if chunk.config.CompressionLevel >= -1 && chunk.config.CompressionLevel <= 9 {
-		deflater, _ := zlib.NewWriterLevel(encryptedBuffer, chunk.config.CompressionLevel)
-		deflater.Write(chunk.buffer.Bytes())
-		deflater.Close()
-	} else if chunk.config.CompressionLevel == DEFAULT_COMPRESSION_LEVEL {
-		encryptedBuffer.Write([]byte("LZ4 "))
-		// Make sure we have enough space in encryptedBuffer
-		availableLength := encryptedBuffer.Cap() - len(encryptedBuffer.Bytes())
-		maximumLength := lz4.CompressBound(len(chunk.buffer.Bytes()))
-		if availableLength < maximumLength {
-			encryptedBuffer.Grow(maximumLength - availableLength)
-		}
-		written, err := lz4.Encode(encryptedBuffer.Bytes()[offset+4:], chunk.buffer.Bytes())
-		if err != nil {
-			return fmt.Errorf("LZ4 compression error: %v", err)
-		}
-		// written is actually encryptedBuffer[offset + 4:], but we need to move the write pointer
-		// and this seems to be the only way
-		encryptedBuffer.Write(written)
-	} else {
-		return fmt.Errorf("Invalid compression level: %d", chunk.config.CompressionLevel)
+	compressed, err := zstd.CompressLevel(nil, chunk.buffer.Bytes(), chunk.config.CompressionLevel)
+	if err != nil {
+		return err
 	}
 
 	if len(encryptionKey) == 0 {
+		encryptedBuffer.Write(compressed)
 		chunk.buffer, encryptedBuffer = encryptedBuffer, chunk.buffer
 		return nil
 	}
 
-	// PKCS7 is used.  Compressed chunk sizes leaks information about the original chunks so we want the padding sizes
-	// to be the maximum allowed by PKCS7
-	dataLength := encryptedBuffer.Len() - offset
-	paddingLength := dataLength % 256
-	if paddingLength == 0 {
-		paddingLength = 256
+	encrypted, skeinMac, err := threefishCTR(key, salt, compressed, true)
+	if err != nil {
+		return err
 	}
-
-	encryptedBuffer.Write(bytes.Repeat([]byte{byte(paddingLength)}, paddingLength))
-	encryptedBuffer.Write(bytes.Repeat([]byte{0}, gcm.Overhead()))
-
-	// The encrypted data will be appended to the duplicacy header and the once.
-	encryptedBytes := gcm.Seal(encryptedBuffer.Bytes()[:offset], nonce,
-		encryptedBuffer.Bytes()[offset:offset+dataLength+paddingLength], nil)
-
-	encryptedBuffer.Truncate(len(encryptedBytes))
-
+	encryptedBuffer.Write(skeinMac)
+	encryptedBuffer.Write(encrypted)
 	chunk.buffer, encryptedBuffer = encryptedBuffer, chunk.buffer
 
 	return nil
-
 }
 
 // Decrypt decrypts the encrypted data stored in the chunk buffer.  If derivationKey is not nil, the actual
@@ -286,23 +277,11 @@ func (chunk *Chunk) Decrypt(encryptionKey []byte, derivationKey string) (err err
 		key := encryptionKey
 
 		if len(derivationKey) > 0 {
-			hasher := chunk.config.NewKeyedHasher([]byte(derivationKey))
-			hasher.Write(encryptionKey)
-			key = hasher.Sum(nil)
-		}
-
-		aesBlock, err := aes.NewCipher(key)
-		if err != nil {
-			return err
-		}
-
-		gcm, err := cipher.NewGCM(aesBlock)
-		if err != nil {
-			return err
+			key = pbkdf2.Key(encryptionKey, []byte(derivationKey), 100, 128, sha512.New)
 		}
 
 		headerLength := len(ENCRYPTION_HEADER)
-		offset = headerLength + gcm.NonceSize()
+		offset = headerLength + 32 + threefish.BlockSize512
 
 		if len(encryptedBuffer.Bytes()) < offset {
 			return fmt.Errorf("No enough encrypted data (%d bytes) provided", len(encryptedBuffer.Bytes()))
@@ -316,65 +295,37 @@ func (chunk *Chunk) Decrypt(encryptionKey []byte, derivationKey string) (err err
 			return fmt.Errorf("Unsupported encryption version %d", encryptedBuffer.Bytes()[headerLength-1])
 		}
 
-		nonce := encryptedBuffer.Bytes()[headerLength:offset]
+		salt := encryptedBuffer.Bytes()[headerLength : headerLength+32]
+		chunkSkeinMac := encryptedBuffer.Bytes()[headerLength+32 : offset]
 
-		decryptedBytes, err := gcm.Open(encryptedBuffer.Bytes()[:offset], nonce,
-			encryptedBuffer.Bytes()[offset:], nil)
-
+		decrypted, skeinMac, err := threefishCTR(key, salt, encryptedBuffer.Bytes()[offset:], false)
 		if err != nil {
 			return err
 		}
-
-		paddingLength := int(decryptedBytes[len(decryptedBytes)-1])
-		if paddingLength == 0 {
-			paddingLength = 256
-		}
-		if len(decryptedBytes) <= paddingLength {
-			return fmt.Errorf("Incorrect padding length %d out of %d bytes", paddingLength, len(decryptedBytes))
+		if bytes.Compare(chunkSkeinMac, skeinMac) != 0 {
+			return fmt.Errorf("Unable to verify MAC")
 		}
 
-		for i := 0; i < paddingLength; i++ {
-			padding := decryptedBytes[len(decryptedBytes)-1-i]
-			if padding != byte(paddingLength) {
-				return fmt.Errorf("Incorrect padding of length %d: %x", paddingLength,
-					decryptedBytes[len(decryptedBytes)-paddingLength:])
-			}
-		}
-
-		encryptedBuffer.Truncate(len(decryptedBytes) - paddingLength)
-	}
-
-	encryptedBuffer.Read(encryptedBuffer.Bytes()[:offset])
-
-	compressed := encryptedBuffer.Bytes()
-	if len(compressed) > 4 && string(compressed[:4]) == "LZ4 " {
 		chunk.buffer.Reset()
-		decompressed, err := lz4.Decode(chunk.buffer.Bytes(), encryptedBuffer.Bytes()[4:])
+		decompressed, err := zstd.Decompress(nil, decrypted)
 		if err != nil {
 			return err
 		}
-
 		chunk.buffer.Write(decompressed)
 		chunk.hasher = chunk.config.NewKeyedHasher(chunk.config.HashKey)
 		chunk.hasher.Write(decompressed)
 		chunk.hash = nil
 		return nil
 	}
-	inflater, err := zlib.NewReader(encryptedBuffer)
+
+	chunk.buffer.Reset()
+	decompressed, err := zstd.Decompress(nil, encryptedBuffer.Bytes())
 	if err != nil {
 		return err
 	}
-
-	defer inflater.Close()
-
-	chunk.buffer.Reset()
+	chunk.buffer.Write(decompressed)
 	chunk.hasher = chunk.config.NewKeyedHasher(chunk.config.HashKey)
+	chunk.hasher.Write(decompressed)
 	chunk.hash = nil
-
-	if _, err = io.Copy(chunk, inflater); err != nil {
-		return err
-	}
-
 	return nil
-
 }

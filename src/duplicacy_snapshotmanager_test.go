@@ -6,7 +6,7 @@ package duplicacy
 
 import (
 	"crypto/rand"
-	"encoding/hex"
+	"github.com/tv42/zbase32"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -152,7 +152,7 @@ func createTestSnapshot(manager *SnapshotManager, snapshotID string, revision in
 
 	var chunkHashesInHex []string
 	for _, chunkHash := range chunkHashes {
-		chunkHashesInHex = append(chunkHashesInHex, hex.EncodeToString([]byte(chunkHash)))
+		chunkHashesInHex = append(chunkHashesInHex, zbase32.EncodeToString([]byte(chunkHash)))
 	}
 
 	sequence, _ := json.Marshal(chunkHashesInHex)

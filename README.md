@@ -1,6 +1,6 @@
 # Duplicacy: A lock-free deduplication cloud backup tool
 
-Duplicacy is a new generation cross-platform cloud backup tool based on the idea of [Lock-Free Deduplication](https://github.com/gilbertchen/duplicacy/wiki/Lock-Free-Deduplication).  It is the only cloud backup tool that allows multiple computers to back up to the same storage simultaneously without using any locks (thus readily amenable to various cloud storage services).
+Duplicacy is a new generation cross-platform cloud backup tool based on the idea of [Lock-Free Deduplication](https://github.com/pbtrung/duplicacy/wiki/Lock-Free-Deduplication).  It is the only cloud backup tool that allows multiple computers to back up to the same storage simultaneously without using any locks (thus readily amenable to various cloud storage services).
 
 The repository hosts source code, design documents, and binary releases of the command line version.  There is also a Duplicacy GUI frontend built for Windows and Mac OS X available from https://duplicacy.com.
 
@@ -18,7 +18,7 @@ Duplicacy currently supports major cloud storage providers (Amazon S3, Google Cl
 * Concurrent access: multiple clients can back up to the same storage at the same time
 * Snapshot migration: all or selected snapshots can be migrated from one storage to another
 
-The key idea of **[Lock-Free Deduplication](https://github.com/gilbertchen/duplicacy/wiki/Lock-Free-Deduplication)** can be summarized as follows:
+The key idea of **[Lock-Free Deduplication](https://github.com/pbtrung/duplicacy/wiki/Lock-Free-Deduplication)** can be summarized as follows:
 
 * Use variable-size chunking algorithm to split files into chunks
 * Store each chunk in the storage using a file name derived from its hash, and rely on the file system API to manage chunks without using a centralized indexing database
@@ -26,8 +26,8 @@ The key idea of **[Lock-Free Deduplication](https://github.com/gilbertchen/dupli
 
 ## Getting Started
 
-* [A brief introduction](https://github.com/gilbertchen/duplicacy/wiki/Quick-Start)
-* [Command references](https://github.com/gilbertchen/duplicacy/wiki)
+* [A brief introduction](https://github.com/pbtrung/duplicacy/wiki/Quick-Start)
+* [Command references](https://github.com/pbtrung/duplicacy/wiki)
 
 ## Storages
 
@@ -46,7 +46,7 @@ With Duplicacy, you can back up files to local or networked drives, SFTP servers
 | Dropbox | 2GB free <br> $8.25/TB | free | free | no |
 | Hubic | 25GB free <br> €1/100GB <br> €5/10TB | free | free | no |
 
-Please consult the [wiki page](https://github.com/gilbertchen/duplicacy/wiki/Storage-Backends) on how to set up Duplicacy to work with each cloud storage.
+Please consult the [wiki page](https://github.com/pbtrung/duplicacy/wiki/Storage-Backends) on how to set up Duplicacy to work with each cloud storage.
 
 It should be noted that their performances vary a lot.  A [performance comparison](https://github.com/gilbertchen/cloud-storage-comparison) of these storages measured the running times (in seconds) of backing up and restoring the [Linux code base](https://github.com/torvalds/linux) as follows:
 

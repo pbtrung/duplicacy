@@ -8,7 +8,7 @@ import (
 	"bytes"
 	"crypto/sha1"
 	"encoding/base64"
-	"encoding/hex"
+	"github.com/tv42/zbase32"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -516,7 +516,7 @@ func (client *B2Client) UploadFile(filePath string, content []byte, rateLimit in
 
 	hasher := sha1.New()
 	hasher.Write(content)
-	hash := hex.EncodeToString(hasher.Sum(nil))
+	hash := zbase32.EncodeToString(hasher.Sum(nil))
 
 	headers := make(map[string]string)
 	headers["X-Bz-File-Name"] = filePath

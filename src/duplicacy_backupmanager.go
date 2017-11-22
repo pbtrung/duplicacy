@@ -6,7 +6,7 @@ package duplicacy
 
 import (
 	"bytes"
-	"encoding/hex"
+	"github.com/tv42/zbase32"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -1255,7 +1255,7 @@ func (manager *BackupManager) RestoreFile(chunkDownloader *ChunkDownloader, chun
 					break
 				}
 			}
-			fileHash = hex.EncodeToString(fileHasher.Sum(nil))
+			fileHash = zbase32.EncodeToString(fileHasher.Sum(nil))
 		} else {
 			// If it is not inplace, we want to reuse any chunks in the existing file regardless their offets, so
 			// we run the chunk maker to split the original file.
@@ -1372,7 +1372,7 @@ func (manager *BackupManager) RestoreFile(chunkDownloader *ChunkDownloader, chun
 		}
 
 		// Verify the download by hash
-		hash := hex.EncodeToString(hasher.Sum(nil))
+		hash := zbase32.EncodeToString(hasher.Sum(nil))
 		if hash != entry.Hash && hash != "" && entry.Hash != "" && !strings.HasPrefix(entry.Hash, "#") {
 			LOG_ERROR("DOWNLOAD_HASH", "File %s has a mismatched hash: %s instead of %s (in-place)",
 				fullPath, "", entry.Hash)
@@ -1445,7 +1445,7 @@ func (manager *BackupManager) RestoreFile(chunkDownloader *ChunkDownloader, chun
 			offset += int64(len(data))
 		}
 
-		hash := hex.EncodeToString(hasher.Sum(nil))
+		hash := zbase32.EncodeToString(hasher.Sum(nil))
 		if hash != entry.Hash && hash != "" && entry.Hash != "" && !strings.HasPrefix(entry.Hash, "#") {
 			LOG_ERROR("DOWNLOAD_HASH", "File %s has a mismatched hash: %s instead of %s",
 				entry.Path, hash, entry.Hash)

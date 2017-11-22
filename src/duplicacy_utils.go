@@ -6,7 +6,6 @@ package duplicacy
 
 import (
 	"bufio"
-	"crypto/sha256"
 	"fmt"
 	"io"
 	"os"
@@ -19,7 +18,8 @@ import (
 	"time"
 
 	"github.com/gilbertchen/gopass"
-	"golang.org/x/crypto/pbkdf2"
+
+	"github.com/lhecker/argon2"
 )
 
 var RunInBackground bool = false
@@ -160,7 +160,32 @@ func RateLimitedCopy(writer io.Writer, reader io.Reader, rate int) (written int6
 
 // GenerateKeyFromPassword generates a key from the password.
 func GenerateKeyFromPassword(password string, salt []byte, iterations int) []byte {
-	return pbkdf2.Key([]byte(password), salt, iterations, 32, sha256.New)
+
+	cfg := argon2.DefaultConfig()
+	cfg.HashLength = 128
+	cfg.MemoryCost = 1 << 18
+	cfg.Parallelism = 2
+	if salt == nil && iterations == 0 {
+		passLen := len([]byte(password))
+		saltLen := 32
+		cfg.TimeCost = 8
+		raw, err := cfg.Hash([]byte(password)[:passLen-saltLen], []byte(password)[passLen-saltLen:])
+		if err != nil {
+			LOG_ERROR("ARGON2", "Unable to generate a byte array using Argon2")
+			os.Exit(1)
+		}
+		return raw.Hash
+	} else if salt != nil && iterations >= 8 {
+		cfg.TimeCost = uint32(iterations)
+		raw, err := cfg.Hash([]byte(password), salt)
+		if err != nil {
+			LOG_ERROR("ARGON2", "Unable to generate a byte array using Argon2")
+			os.Exit(1)
+		}
+		return raw.Hash
+	}
+
+	return nil
 }
 
 // Get password from preference, env, but don't start any keyring request

@@ -6,7 +6,7 @@ package duplicacy
 
 import (
 	"crypto/sha256"
-	"encoding/hex"
+	"github.com/tv42/zbase32"
 	"encoding/json"
 	"testing"
 
@@ -88,7 +88,7 @@ func TestB2Client(t *testing.T) {
 		}
 
 		hash := sha256.Sum256(content)
-		name := hex.EncodeToString(hash[:])
+		name := zbase32.EncodeToString(hash[:])
 
 		err = b2Client.UploadFile(testDirectory+name, content, 100)
 		if err != nil {
@@ -116,7 +116,7 @@ func TestB2Client(t *testing.T) {
 		hasher := sha256.New()
 		_, err = io.Copy(hasher, readCloser)
 
-		hash := hex.EncodeToString(hasher.Sum(nil))
+		hash := zbase32.EncodeToString(hasher.Sum(nil))
 
 		if testDirectory+hash != file.FileName {
 			t.Errorf("File %s has hash %s", file.FileName, hash)

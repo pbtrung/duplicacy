@@ -6,7 +6,7 @@ package duplicacy
 
 import (
 	"bytes"
-	"encoding/hex"
+	"github.com/tv42/zbase32"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -1141,13 +1141,13 @@ func (manager *SnapshotManager) RetrieveFile(snapshot *Snapshot, file *Entry, ou
 
 		output(chunk.GetBytes()[start:end])
 		if alternateHash {
-			fileHasher.Write([]byte(hex.EncodeToString([]byte(hash))))
+			fileHasher.Write([]byte(zbase32.EncodeToString([]byte(hash))))
 		} else {
 			fileHasher.Write(chunk.GetBytes()[start:end])
 		}
 	}
 
-	fileHash := hex.EncodeToString(fileHasher.Sum(nil))
+	fileHash := zbase32.EncodeToString(fileHasher.Sum(nil))
 	if alternateHash {
 		fileHash = "#" + fileHash
 	}

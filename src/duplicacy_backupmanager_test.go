@@ -7,7 +7,7 @@ package duplicacy
 import (
 	crypto_rand "crypto/rand"
 	"crypto/sha256"
-	"encoding/hex"
+	"github.com/tv42/zbase32"
 	"io"
 	"math/rand"
 	"os"
@@ -166,7 +166,7 @@ func getFileHash(path string) (hash string) {
 		return ""
 	}
 
-	return hex.EncodeToString(hasher.Sum(nil))
+	return zbase32.EncodeToString(hasher.Sum(nil))
 }
 
 func TestBackupManager(t *testing.T) {

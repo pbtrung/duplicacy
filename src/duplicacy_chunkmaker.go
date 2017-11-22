@@ -7,7 +7,7 @@ package duplicacy
 import (
 	"crypto/sha256"
 	"encoding/binary"
-	"encoding/hex"
+	"github.com/tv42/zbase32"
 	"io"
 )
 
@@ -167,7 +167,7 @@ func (maker *ChunkMaker) ForEachChunk(reader io.Reader, endOfChunk func(chunk *C
 
 			if isEOF {
 				var ok bool
-				reader, ok = nextReader(fileSize, hex.EncodeToString(fileHasher.Sum(nil)))
+				reader, ok = nextReader(fileSize, zbase32.EncodeToString(fileHasher.Sum(nil)))
 				if !ok {
 					endOfChunk(chunk, true)
 					return
@@ -211,7 +211,7 @@ func (maker *ChunkMaker) ForEachChunk(reader io.Reader, endOfChunk func(chunk *C
 			// if EOF is seen, try to switch to next file and continue
 			if err == io.EOF {
 				var ok bool
-				reader, ok = nextReader(fileSize, hex.EncodeToString(fileHasher.Sum(nil)))
+				reader, ok = nextReader(fileSize, zbase32.EncodeToString(fileHasher.Sum(nil)))
 				if !ok {
 					isEOF = true
 				} else {

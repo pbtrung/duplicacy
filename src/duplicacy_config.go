@@ -6,11 +6,9 @@ package duplicacy
 
 import (
 	"bytes"
-	"crypto/hmac"
 	"crypto/rand"
-	"crypto/sha256"
+	"crypto/sha512"
 	"encoding/binary"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"hash"
@@ -19,15 +17,17 @@ import (
 	"runtime/debug"
 	"sync/atomic"
 
-	blake2 "github.com/minio/blake2b-simd"
+	"golang.org/x/crypto/pbkdf2"
+
+	"github.com/aead/skein"
+	"github.com/tv42/zbase32"
 )
 
 // If encryption is turned off, use this key for HMAC-SHA256 or chunk ID generation etc.
 var DEFAULT_KEY = []byte("duplicacy")
 
-// The new default compression level is 100.  However, in the early versions we use the
-// standard zlib levels of -1 to 9.
-var DEFAULT_COMPRESSION_LEVEL = 100
+// The default zstd compression level is 6.
+var DEFAULT_COMPRESSION_LEVEL = 6
 
 // The new header of the config file (to differentiate from the old format where the salt and iterations are fixed)
 var CONFIG_HEADER = "duplicacy\001"
@@ -37,6 +37,8 @@ var CONFIG_SALT_LENGTH = 32
 
 // The default iterations for key derivation
 var CONFIG_DEFAULT_ITERATIONS = 16384
+
+var PERSONALIZATION = []byte("Trung Pham")
 
 type Config struct {
 	CompressionLevel int `json:"compression-level"`
@@ -86,11 +88,11 @@ func (config *Config) MarshalJSON() ([]byte, error) {
 
 	return json.Marshal(&jsonableConfig{
 		aliasedConfig: (*aliasedConfig)(config),
-		ChunkSeed:     hex.EncodeToString(config.ChunkSeed),
-		HashKey:       hex.EncodeToString(config.HashKey),
-		IDKey:         hex.EncodeToString(config.IDKey),
-		ChunkKey:      hex.EncodeToString(config.ChunkKey),
-		FileKey:       hex.EncodeToString(config.FileKey),
+		ChunkSeed:     zbase32.EncodeToString(config.ChunkSeed),
+		HashKey:       zbase32.EncodeToString(config.HashKey),
+		IDKey:         zbase32.EncodeToString(config.IDKey),
+		ChunkKey:      zbase32.EncodeToString(config.ChunkKey),
+		FileKey:       zbase32.EncodeToString(config.FileKey),
 	})
 }
 
@@ -104,19 +106,19 @@ func (config *Config) UnmarshalJSON(description []byte) (err error) {
 		return err
 	}
 
-	if config.ChunkSeed, err = hex.DecodeString(aliased.ChunkSeed); err != nil {
+	if config.ChunkSeed, err = zbase32.DecodeString(aliased.ChunkSeed); err != nil {
 		return fmt.Errorf("Invalid representation of the chunk seed in the config")
 	}
-	if config.HashKey, err = hex.DecodeString(aliased.HashKey); err != nil {
+	if config.HashKey, err = zbase32.DecodeString(aliased.HashKey); err != nil {
 		return fmt.Errorf("Invalid representation of the hash key in the config")
 	}
-	if config.IDKey, err = hex.DecodeString(aliased.IDKey); err != nil {
+	if config.IDKey, err = zbase32.DecodeString(aliased.IDKey); err != nil {
 		return fmt.Errorf("Invalid representation of the id key in the config")
 	}
-	if config.ChunkKey, err = hex.DecodeString(aliased.ChunkKey); err != nil {
+	if config.ChunkKey, err = zbase32.DecodeString(aliased.ChunkKey); err != nil {
 		return fmt.Errorf("Invalid representation of the chunk key in the config")
 	}
-	if config.FileKey, err = hex.DecodeString(aliased.FileKey); err != nil {
+	if config.FileKey, err = zbase32.DecodeString(aliased.FileKey); err != nil {
 		return fmt.Errorf("Invalid representation of the file key in the config")
 	}
 
@@ -155,18 +157,18 @@ func CreateConfigFromParameters(compressionLevel int, averageChunkSize int, maxi
 
 	if isEncrypted {
 		// Randomly generate keys
-		keys := make([]byte, 32*5)
+		keys := make([]byte, 64*3+128*2)
 		_, err := rand.Read(keys)
 		if err != nil {
 			LOG_ERROR("CONFIG_KEY", "Failed to generate random keys: %v", err)
 			return nil
 		}
 
-		config.ChunkSeed = keys[:32]
-		config.HashKey = keys[32:64]
-		config.IDKey = keys[64:96]
-		config.ChunkKey = keys[96:128]
-		config.FileKey = keys[128:]
+		config.ChunkSeed = keys[:64]
+		config.HashKey = keys[64:128]
+		config.IDKey = keys[128:192]
+		config.ChunkKey = keys[192:320]
+		config.FileKey = keys[320:]
 	} else {
 		config.ChunkSeed = DEFAULT_KEY
 		config.HashKey = DEFAULT_KEY
@@ -234,15 +236,7 @@ func (config *Config) PutChunk(chunk *Chunk) {
 }
 
 func (config *Config) NewKeyedHasher(key []byte) hash.Hash {
-	if config.CompressionLevel == DEFAULT_COMPRESSION_LEVEL {
-		hasher, err := blake2.New(&blake2.Config{Size: 32, Key: key})
-		if err != nil {
-			LOG_ERROR("HASH_KEY", "Invalid hash key: %x", key)
-		}
-		return hasher
-	} else {
-		return hmac.New(sha256.New, key)
-	}
+	return skein.New(64, &skein.Config{Key: key, Personal: PERSONALIZATION})
 }
 
 var SkipFileHash = false
@@ -279,12 +273,8 @@ func (hasher *DummyHasher) BlockSize() int {
 func (config *Config) NewFileHasher() hash.Hash {
 	if SkipFileHash {
 		return &DummyHasher{}
-	} else if config.CompressionLevel == DEFAULT_COMPRESSION_LEVEL {
-		hasher, _ := blake2.New(&blake2.Config{Size: 32})
-		return hasher
-	} else {
-		return sha256.New()
 	}
+	return skein.New(64, &skein.Config{Personal: PERSONALIZATION})
 }
 
 // Calculate the file hash using the corresponding hasher
@@ -304,16 +294,15 @@ func (config *Config) ComputeFileHash(path string, buffer []byte) string {
 		hasher.Write(buffer[:count])
 	}
 
-	return hex.EncodeToString(hasher.Sum(nil))
+	return zbase32.EncodeToString(hasher.Sum(nil))
 }
 
 // GetChunkIDFromHash creates a chunk id from the chunk hash.  The chunk id will be used as the name of the chunk
 // file, so it is publicly exposed.  The chunk hash is the HMAC-SHA256 of what is contained in the chunk and should
 // never be exposed.
 func (config *Config) GetChunkIDFromHash(hash string) string {
-	hasher := config.NewKeyedHasher(config.IDKey)
-	hasher.Write([]byte(hash))
-	return hex.EncodeToString(hasher.Sum(nil))
+	id := pbkdf2.Key(config.IDKey, []byte(hash), 13, 64, sha512.New)
+	return zbase32.EncodeToString(id)
 }
 
 func DownloadConfig(storage Storage, password string) (config *Config, isEncrypted bool, err error) {
@@ -349,8 +338,8 @@ func DownloadConfig(storage Storage, password string) (config *Config, isEncrypt
 
 		if string(configFile.GetBytes()[:len(ENCRYPTION_HEADER)]) == ENCRYPTION_HEADER {
 			// This is the old config format with a static salt and a fixed number of iterations
-			masterKey = GenerateKeyFromPassword(password, DEFAULT_KEY, CONFIG_DEFAULT_ITERATIONS)
-			LOG_TRACE("CONFIG_FORMAT", "Using a static salt and %d iterations for key derivation", CONFIG_DEFAULT_ITERATIONS)
+			masterKey = GenerateKeyFromPassword(password, nil, 0)
+			LOG_TRACE("CONFIG_FORMAT", "Trung Pham's config format")
 		} else if string(configFile.GetBytes()[:len(CONFIG_HEADER)]) == CONFIG_HEADER {
 			// This is the new config format with a random salt and a configurable number of iterations
 			encryptedLength := len(configFile.GetBytes()) - CONFIG_SALT_LENGTH - 4
@@ -403,7 +392,7 @@ func UploadConfig(storage Storage, config *Config, password string, iterations i
 
 	if len(password) > 0 {
 
-		if len(password) < 8 {
+		if len(password) < 64 {
 			LOG_ERROR("CONFIG_PASSWORD", "The password must be at least 8 characters")
 			return false
 		}
@@ -411,6 +400,11 @@ func UploadConfig(storage Storage, config *Config, password string, iterations i
 		_, err := rand.Read(salt)
 		if err != nil {
 			LOG_ERROR("CONFIG_KEY", "Failed to generate random salt: %v", err)
+			return false
+		}
+
+		if iterations < 8 {
+			LOG_ERROR("CONFIG_ITERATIONS", "Number of iterations must be at least 8")
 			return false
 		}
 
