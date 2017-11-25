@@ -1,5 +1,11 @@
 # Duplicacy: A lock-free deduplication cloud backup tool
 
+The following features are added to this fork:
+* Encryption: Threefish with 1024 bit key
+* Password hashing: Argon2
+* Compression: zstd
+* **[Sia](https://sia.tech)** support: a decentralized cloud storage platform that uses a blockchain to facilitate payments
+
 Duplicacy is a new generation cross-platform cloud backup tool based on the idea of [Lock-Free Deduplication](https://github.com/gilbertchen/duplicacy/wiki/Lock-Free-Deduplication).  It is the only cloud backup tool that allows multiple computers to back up to the same storage simultaneously without using any locks (thus readily amenable to various cloud storage services).
 
 ## Features
@@ -13,12 +19,6 @@ Duplicacy currently supports major cloud storage providers (Amazon S3, Google Cl
 * Deletion: every backup can be deleted independently without affecting others
 * Concurrent access: multiple clients can back up to the same storage at the same time
 * Snapshot migration: all or selected snapshots can be migrated from one storage to another
-
-The following features are added to this fork:
-* Encryption: Threefish with 1024 bit key
-* Password hashing: Argon2
-* Compression: zstd
-* **[Sia](https://sia.tech)** support: a decentralized cloud storage platform that uses a blockchain to facilitate payments
 
 The key idea of **[Lock-Free Deduplication](https://github.com/gilbertchen/duplicacy/wiki/Lock-Free-Deduplication)** can be summarized as follows:
 
