@@ -301,7 +301,9 @@ func configRepository(context *cli.Context, init bool) {
 	if existingConfig != nil {
 		duplicacy.LOG_INFO("STORAGE_CONFIGURED",
 			"The storage '%s' has already been initialized", preference.StorageURL)
-		if existingConfig.CompressionLevel < 1 && existingConfig.CompressionLevel > 19 {
+		if existingConfig.CompressionLevel == 100 {
+			duplicacy.LOG_INFO("STORAGE_CONFIGURED", "Trung Pham's config format")
+		} else if existingConfig.CompressionLevel < 1 || existingConfig.CompressionLevel > 19 {
 			duplicacy.LOG_ERROR("STORAGE_COMPRESSION", "This storage is configured with an invalid compression level %d", existingConfig.CompressionLevel)
 			return
 		}
