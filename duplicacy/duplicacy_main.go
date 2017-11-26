@@ -404,10 +404,7 @@ func configRepository(context *cli.Context, init bool) {
 		if iterations == 0 {
 			iterations = duplicacy.CONFIG_DEFAULT_ITERATIONS
 		}
-		if iterations < 8 {
-			duplicacy.LOG_ERROR("CONFIG_PASSWORD", "Number of iterations must >= 8")
-			os.Exit(1)
-		}
+
 		duplicacy.ConfigStorage(storage, iterations, compressionLevel, averageChunkSize, maximumChunkSize,
 			minimumChunkSize, storagePassword, otherConfig, bitCopy)
 	}
@@ -591,10 +588,6 @@ func changePassword(context *cli.Context) {
 	iterations := context.Int("iterations")
 	if iterations == 0 {
 		iterations = duplicacy.CONFIG_DEFAULT_ITERATIONS
-	}
-	if iterations < 8 {
-		duplicacy.LOG_ERROR("CONFIG_PASSWORD", "Number of iterations must >= 8")
-		os.Exit(1)
 	}
 
 	duplicacy.UploadConfig(storage, config, newPassword, iterations)
