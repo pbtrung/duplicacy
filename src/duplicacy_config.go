@@ -141,7 +141,7 @@ func (config *Config) Print() {
 	LOG_INFO("CONFIG_INFO", "Average chunk size: %d", config.AverageChunkSize)
 	LOG_INFO("CONFIG_INFO", "Maximum chunk size: %d", config.MaximumChunkSize)
 	LOG_INFO("CONFIG_INFO", "Minimum chunk size: %d", config.MinimumChunkSize)
-	LOG_INFO("CONFIG_INFO", "Chunk seed: %x", config.ChunkSeed)
+	LOG_INFO("CONFIG_INFO", "Chunk seed: %s", zbase32.EncodeToString(config.ChunkSeed))
 }
 
 func CreateConfigFromParameters(compressionLevel int, averageChunkSize int, maximumChunkSize int, mininumChunkSize int,
