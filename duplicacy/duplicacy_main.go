@@ -585,6 +585,10 @@ func changePassword(context *cli.Context) {
 	}
 
 	iterations := context.Int("iterations")
+	if iterations < 8 {
+		LOG_ERROR("CONFIG_PASSWORD", "Number of iterations must >= 8")
+		os.Exit(1)
+	}
 	if iterations == 0 {
 		iterations = duplicacy.CONFIG_DEFAULT_ITERATIONS
 	}
