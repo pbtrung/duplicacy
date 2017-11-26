@@ -401,12 +401,12 @@ func configRepository(context *cli.Context, init bool) {
 		}
 
 		iterations := context.Int("iterations")
+		if iterations == 0 {
+			iterations = duplicacy.CONFIG_DEFAULT_ITERATIONS
+		}
 		if iterations < 8 {
 			duplicacy.LOG_ERROR("CONFIG_PASSWORD", "Number of iterations must >= 8")
 			os.Exit(1)
-		}
-		if iterations == 0 {
-			iterations = duplicacy.CONFIG_DEFAULT_ITERATIONS
 		}
 		duplicacy.ConfigStorage(storage, iterations, compressionLevel, averageChunkSize, maximumChunkSize,
 			minimumChunkSize, storagePassword, otherConfig, bitCopy)
@@ -589,12 +589,12 @@ func changePassword(context *cli.Context) {
 	}
 
 	iterations := context.Int("iterations")
+	if iterations == 0 {
+		iterations = duplicacy.CONFIG_DEFAULT_ITERATIONS
+	}
 	if iterations < 8 {
 		duplicacy.LOG_ERROR("CONFIG_PASSWORD", "Number of iterations must >= 8")
 		os.Exit(1)
-	}
-	if iterations == 0 {
-		iterations = duplicacy.CONFIG_DEFAULT_ITERATIONS
 	}
 
 	duplicacy.UploadConfig(storage, config, newPassword, iterations)
@@ -1615,8 +1615,8 @@ func main() {
 					Argument: "<storage name>",
 				},
 				cli.BoolFlag{
-					Name:     "bit-identical",
-					Usage:    "(when using -copy) make the new storage bit-identical to also allow rsync etc.",
+					Name:  "bit-identical",
+					Usage: "(when using -copy) make the new storage bit-identical to also allow rsync etc.",
 				},
 			},
 			Usage:     "Add an additional storage to be used for the existing repository",
