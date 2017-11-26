@@ -301,9 +301,7 @@ func configRepository(context *cli.Context, init bool) {
 	if existingConfig != nil {
 		duplicacy.LOG_INFO("STORAGE_CONFIGURED",
 			"The storage '%s' has already been initialized", preference.StorageURL)
-		if existingConfig.CompressionLevel >= -1 && existingConfig.CompressionLevel <= 9 {
-			duplicacy.LOG_INFO("STORAGE_FORMAT", "This storage is configured to use the pre-1.2.0 format")
-		} else if existingConfig.CompressionLevel != 100 {
+		if existingConfig.CompressionLevel < 1 && existingConfig.CompressionLevel > 19 {
 			duplicacy.LOG_ERROR("STORAGE_COMPRESSION", "This storage is configured with an invalid compression level %d", existingConfig.CompressionLevel)
 			return
 		}
@@ -313,7 +311,7 @@ func configRepository(context *cli.Context, init bool) {
 			existingConfig.Print()
 		}
 	} else {
-		compressionLevel := 100
+		compressionLevel := duplicacy.DEFAULT_COMPRESSION_LEVEL
 
 		averageChunkSize := duplicacy.AtoSize(context.String("chunk-size"))
 		if averageChunkSize == 0 {
