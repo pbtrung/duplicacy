@@ -16,6 +16,9 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+	"net/http"
+
+	_ "net/http/pprof"
 
 	"github.com/gilbertchen/cli"
 
@@ -138,6 +141,15 @@ func setGlobalOptions(context *cli.Context) {
 		ScriptEnabled = false
 	}
 
+	address := context.GlobalString("profile")
+	if address != "" {
+		go func() {
+			http.ListenAndServe(address, nil)
+		}()
+	}
+
+
+
 	duplicacy.RunInBackground = context.GlobalBool("background")
 }
 
@@ -216,7 +228,10 @@ func configRepository(context *cli.Context, init bool) {
 	var storageURL string
 
 	if init {
-		storageName = "default"
+		storageName = context.String("storage-name")
+		if len(storageName) == 0 {
+			storageName = "default"
+		}
 		snapshotID = context.Args()[0]
 		storageURL = context.Args()[1]
 	} else {
@@ -590,11 +605,45 @@ func changePassword(context *cli.Context) {
 		iterations = duplicacy.CONFIG_DEFAULT_ITERATIONS
 	}
 
+	description, err := json.MarshalIndent(config, "", "    ")
+	if err != nil {
+		duplicacy.LOG_ERROR("CONFIG_MARSHAL", "Failed to marshal the config: %v", err)
+		return
+	}
+
+	configPath := path.Join(duplicacy.GetDuplicacyPreferencePath(), "config")
+	err = ioutil.WriteFile(configPath, description, 0600)
+	if err != nil {
+		duplicacy.LOG_ERROR("CONFIG_SAVE", "Failed to save the old config to %s: %v", configPath, err)
+		return
+	}
+	duplicacy.LOG_INFO("CONFIG_SAVE", "The old config has been temporarily saved to %s", configPath)
+
+	removeLocalCopy := false
+	defer func() {
+		if removeLocalCopy {
+			err = os.Remove(configPath)
+			if err != nil {
+				duplicacy.LOG_WARN("CONFIG_CLEAN", "Failed to delete %s: %v", configPath, err)
+			} else {
+				duplicacy.LOG_INFO("CONFIG_CLEAN", "The local copy of the old config has been removed")
+			}
+		}
+	} ()
+
+	err = storage.DeleteFile(0, "config")
+	if err != nil {
+		duplicacy.LOG_ERROR("CONFIG_DELETE", "Failed to delete the old config from the storage: %v", err)
+		return
+	}
+
 	duplicacy.UploadConfig(storage, config, newPassword, iterations)
 
 	duplicacy.SavePassword(*preference, "password", newPassword)
 
 	duplicacy.LOG_INFO("STORAGE_SET", "The password for storage %s has been changed", preference.StorageURL)
+
+	removeLocalCopy = true
 }
 
 func backupRepository(context *cli.Context) {
@@ -1171,6 +1220,19 @@ func infoStorage(context *cli.Context) {
 	} else {
 		config.Print()
 	}
+
+	dirs, _, err := storage.ListFiles(0, "snapshots/")
+	if err != nil {
+		duplicacy.LOG_ERROR("STORAGE_LIST", "Failed to list repository ids: %v", err)
+		return
+	}
+
+	for _, dir := range dirs {
+		if len(dir) > 0 && dir[len(dir)-1] == '/' {
+			duplicacy.LOG_INFO("STORAGE_SNAPSHOT", "%s", dir[0:len(dir) - 1])
+		}
+	}
+
 }
 
 func main() {
@@ -1213,6 +1275,11 @@ func main() {
 					Usage:    "alternate location for the .duplicacy directory (absolute or relative to current directory)",
 					Argument: "<path>",
 				},
+				cli.StringFlag{
+					Name:     "storage-name",
+					Usage:    "assign a name to the storage",
+					Argument: "<name>",
+				},
 			},
 			Usage:     "Initialize the storage if necessary and the current directory as the repository",
 			ArgsUsage: "<snapshot id> <storage url>",
@@ -1248,7 +1315,7 @@ func main() {
 				},
 				cli.BoolFlag{
 					Name:  "dry-run",
-					Usage: "Dry run for testing, don't backup anything. Use with -stats and -d",
+					Usage: "dry run for testing, don't backup anything. Use with -stats and -d",
 				},
 				cli.BoolFlag{
 					Name:  "vss",
@@ -1757,7 +1824,13 @@ func main() {
 			Name:  "background",
 			Usage: "read passwords, tokens, or keys only from keychain/keyring or env",
 		},
-	}
+		cli.StringFlag{
+			Name:     "profile",
+			Value:    "",
+			Usage:    "enable the profiling tool and listen on the specified address:port",
+			Argument: "<address:port>",
+		},
+}
 
 	app.HideVersion = true
 	app.Name = "duplicacy"
