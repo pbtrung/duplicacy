@@ -14,7 +14,7 @@ import (
 
 	"github.com/tv42/zbase32"
 
-	"github.com/NebulousLabs/Sia/api"
+	"github.com/NebulousLabs/Sia/modules"
 )
 
 type apiClient interface {

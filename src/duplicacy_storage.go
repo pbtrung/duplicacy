@@ -19,7 +19,7 @@ import (
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
 
-	"github.com/NebulousLabs/Sia/api"
+	"github.com/NebulousLabs/Sia/modules"
 )
 
 type Storage interface {
