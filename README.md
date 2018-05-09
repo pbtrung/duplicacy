@@ -12,24 +12,19 @@ Duplicacy is a new generation cross-platform cloud backup tool based on the idea
 
 Duplicacy currently supports major cloud storage providers (Amazon S3, Google Cloud Storage, Microsoft Azure, Dropbox, Backblaze B2, Google Drive, Microsoft OneDrive, Hubic, and Sia) and offers all essential features of a modern backup tool:
 
-* Incremental backup: only back up what has been changed
-* Full snapshot: although each backup is incremental, it must behave like a full snapshot for easy restore and deletion
-* Deduplication: identical files must be stored as one copy (file-level deduplication), and identical parts from different files must be stored as one copy (block-level deduplication)
-* Encryption: encrypt not only file contents but also file paths, sizes, times, etc.
-* Deletion: every backup can be deleted independently without affecting others
-* Concurrent access: multiple clients can back up to the same storage at the same time
-* Snapshot migration: all or selected snapshots can be migrated from one storage to another
+* Duplicacy is the *only* cloud backup tool that allows multiple computers to back up to the same cloud storage, taking advantage of cross-computer deduplication whenever possible, without direct communication among them.  This feature literally turns any cloud storage server supporting only a basic set of file operations into a sophisticated deduplication-aware server.  
 
-The key idea of **[Lock-Free Deduplication](https://github.com/gilbertchen/duplicacy/wiki/Lock-Free-Deduplication)** can be summarized as follows:
+* Unlike other chunk-based backup tools where chunks are grouped into pack files and a chunk database is used to track which chunks are stored inside each pack file, Duplicacy takes a database-less approach where every chunk is saved independently using its hash as the file name to facilitate quick lookups.  The lack of a centralized chunk database not only makes the implementation less error-prone, but also produces a highly maintainable piece of software with plenty of room for development of new features and usability enhancements.
 
-* Use variable-size chunking algorithm to split files into chunks
-* Store each chunk in the storage using a file name derived from its hash, and rely on the file system API to manage chunks without using a centralized indexing database
-* Apply a *two-step fossil collection* algorithm to remove chunks that become unreferenced after a backup is deleted
+* Duplicacy is fast.  While the performance wasn't the top-priority design goal, Duplicacy has been shown to outperform other backup tools by a considerable margin, as indicated by the following results obtained from a [benchmarking experiment](https://github.com/gilbertchen/benchmarking) backing up the [Linux code base](https://github.com/torvalds/linux) using Duplicacy and 3 other open-source backup tools.
+
+[![Comparison of Duplicacy, restic, Attic, duplicity](https://github.com/gilbertchen/duplicacy/blob/master/images/duplicacy_benchmark_speed.png "Comparison of Duplicacy, restic, Attic, duplicity")](https://github.com/gilbertchen/benchmarking)
 
 ## Getting Started
 
 * [A brief introduction](https://github.com/gilbertchen/duplicacy/wiki/Quick-Start)
 * [Command references](https://github.com/gilbertchen/duplicacy/wiki)
+* [Building from source](https://github.com/gilbertchen/duplicacy/wiki/Installation)
 
 ## Storages
 

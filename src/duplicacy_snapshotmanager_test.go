@@ -203,7 +203,7 @@ func checkTestSnapshots(manager *SnapshotManager, expectedSnapshots int, expecte
 			snapshot := manager.DownloadSnapshot(snapshotID, revision)
 			numberOfSnapshots++
 
-			for _, chunk := range manager.GetSnapshotChunks(snapshot) {
+			for _, chunk := range manager.GetSnapshotChunks(snapshot, false) {
 				chunks[chunk] = true
 			}
 		}
@@ -226,7 +226,7 @@ func checkTestSnapshots(manager *SnapshotManager, expectedSnapshots int, expecte
 	}
 }
 
-func TestSingleRepositoryPrune(t *testing.T) {
+func TestPruneSingleRepository(t *testing.T) {
 
 	setTestingT(t)
 
@@ -242,26 +242,27 @@ func TestSingleRepositoryPrune(t *testing.T) {
 
 	now := time.Now().Unix()
 	day := int64(24 * 3600)
-	t.Logf("Creating 1 snapshot")
-	createTestSnapshot(snapshotManager, "repository1", 1, now-3*day-3600, now-3*day-60, []string{chunkHash1, chunkHash2}, "tag")
-	checkTestSnapshots(snapshotManager, 1, 2)
+	t.Logf("Creating 2 snapshots")
+	createTestSnapshot(snapshotManager, "repository1", 1, now-4*day-3600, now-3*day-60, []string{chunkHash1, chunkHash2}, "tag")
+	createTestSnapshot(snapshotManager, "repository1", 2, now-4*day-3600, now-3*day-60, []string{chunkHash1, chunkHash2}, "tag")
+	checkTestSnapshots(snapshotManager, 2, 2)
 
 	t.Logf("Creating 2 snapshots")
-	createTestSnapshot(snapshotManager, "repository1", 2, now-2*day-3600, now-2*day-60, []string{chunkHash2, chunkHash3}, "tag")
-	createTestSnapshot(snapshotManager, "repository1", 3, now-1*day-3600, now-1*day-60, []string{chunkHash3, chunkHash4}, "tag")
-	checkTestSnapshots(snapshotManager, 3, 0)
+	createTestSnapshot(snapshotManager, "repository1", 3, now-2*day-3600, now-2*day-60, []string{chunkHash2, chunkHash3}, "tag")
+	createTestSnapshot(snapshotManager, "repository1", 4, now-1*day-3600, now-1*day-60, []string{chunkHash3, chunkHash4}, "tag")
+	checkTestSnapshots(snapshotManager, 4, 0)
 
-	t.Logf("Removing snapshot repository1 revision 1 with --exclusive")
-	snapshotManager.PruneSnapshots("repository1", "repository1", []int{1}, []string{}, []string{}, false, true, []string{}, false, false, false)
+	t.Logf("Removing snapshot repository1 revisions 1 and 2 with --exclusive")
+	snapshotManager.PruneSnapshots("repository1", "repository1", []int{1, 2}, []string{}, []string{}, false, true, []string{}, false, false, false)
 	checkTestSnapshots(snapshotManager, 2, 0)
 
-	t.Logf("Removing snapshot repository1 revision 2 without --exclusive")
-	snapshotManager.PruneSnapshots("repository1", "repository1", []int{2}, []string{}, []string{}, false, false, []string{}, false, false, false)
+	t.Logf("Removing snapshot repository1 revision 3 without --exclusive")
+	snapshotManager.PruneSnapshots("repository1", "repository1", []int{3}, []string{}, []string{}, false, false, []string{}, false, false, false)
 	checkTestSnapshots(snapshotManager, 1, 2)
 
 	t.Logf("Creating 1 snapshot")
 	chunkHash5 := uploadRandomChunk(snapshotManager, chunkSize)
-	createTestSnapshot(snapshotManager, "repository1", 4, now+1*day-3600, now+1*day, []string{chunkHash4, chunkHash5}, "tag")
+	createTestSnapshot(snapshotManager, "repository1", 5, now+1*day-3600, now+1*day, []string{chunkHash4, chunkHash5}, "tag")
 	checkTestSnapshots(snapshotManager, 2, 2)
 
 	t.Logf("Prune without removing any snapshots -- fossils will be deleted")
@@ -269,7 +270,7 @@ func TestSingleRepositoryPrune(t *testing.T) {
 	checkTestSnapshots(snapshotManager, 2, 0)
 }
 
-func TestSingleHostPrune(t *testing.T) {
+func TestPruneSingleHost(t *testing.T) {
 
 	setTestingT(t)
 
@@ -310,7 +311,7 @@ func TestSingleHostPrune(t *testing.T) {
 
 }
 
-func TestMultipleHostPrune(t *testing.T) {
+func TestPruneMultipleHost(t *testing.T) {
 
 	setTestingT(t)
 
@@ -393,7 +394,7 @@ func TestPruneAndResurrect(t *testing.T) {
 	checkTestSnapshots(snapshotManager, 2, 0)
 }
 
-func TestInactiveHostPrune(t *testing.T) {
+func TestPruneWithInactiveHost(t *testing.T) {
 
 	setTestingT(t)
 
@@ -434,7 +435,7 @@ func TestInactiveHostPrune(t *testing.T) {
 	checkTestSnapshots(snapshotManager, 3, 0)
 }
 
-func TestRetentionPolicy(t *testing.T) {
+func TestPruneWithRetentionPolicy(t *testing.T) {
 
 	setTestingT(t)
 
@@ -470,7 +471,7 @@ func TestRetentionPolicy(t *testing.T) {
 	checkTestSnapshots(snapshotManager, 12, 0)
 }
 
-func TestRetentionPolicyAndTag(t *testing.T) {
+func TestPruneWithRetentionPolicyAndTag(t *testing.T) {
 
 	setTestingT(t)
 

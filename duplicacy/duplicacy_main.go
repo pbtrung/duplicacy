@@ -690,6 +690,7 @@ func backupRepository(context *cli.Context) {
 	showStatistics := context.Bool("stats")
 
 	enableVSS := context.Bool("vss")
+	vssTimeout := context.Int("vss-timeout")
 
 	dryRun := context.Bool("dry-run")
 	uploadRateLimit := context.Int("limit-rate")
@@ -699,7 +700,7 @@ func backupRepository(context *cli.Context) {
 
 	backupManager.SetupSnapshotCache(preference.Name)
 	backupManager.SetDryRun(dryRun)
-	backupManager.Backup(repository, quickMode, threads, context.String("t"), showStatistics, enableVSS)
+	backupManager.Backup(repository, quickMode, threads, context.String("t"), showStatistics, enableVSS, vssTimeout)
 
 	runScript(context, preference.Name, "post")
 }
@@ -1272,7 +1273,7 @@ func main() {
 				},
 				cli.IntFlag{
 					Name:     "iterations",
-					Usage:    "the number of iterations used in storage key deriviation (default is 16384)",
+					Usage:    "the number of iterations used in storage key derivation (default is 16384)",
 					Argument: "<i>",
 				},
 				cli.StringFlag{
@@ -1325,6 +1326,12 @@ func main() {
 				cli.BoolFlag{
 					Name:  "vss",
 					Usage: "enable the Volume Shadow Copy service (Windows only)",
+				},
+				cli.IntFlag{
+					Name:     "vss-timeout",
+					Value:    0,
+					Usage:    "the timeout in seconds to wait for the Volume Shadow Copy operation to complete",
+					Argument: "<timeout>",
 				},
 				cli.StringFlag{
 					Name:     "storage",
@@ -1583,7 +1590,7 @@ func main() {
 				},
 				cli.StringSliceFlag{
 					Name:     "t",
-					Usage:    "delete snapshots with the specifed tags",
+					Usage:    "delete snapshots with the specified tags",
 					Argument: "<tag>",
 				},
 				cli.StringSliceFlag{
@@ -1597,7 +1604,7 @@ func main() {
 				},
 				cli.BoolFlag{
 					Name:  "exclusive",
-					Usage: "assume exclusive acess to the storage (disable two-step fossil collection)",
+					Usage: "assume exclusive access to the storage (disable two-step fossil collection)",
 				},
 				cli.BoolFlag{
 					Name:  "dry-run, d",
@@ -1637,7 +1644,7 @@ func main() {
 				},
 				cli.IntFlag{
 					Name:     "iterations",
-					Usage:    "the number of iterations used in storage key deriviation (default is 16384)",
+					Usage:    "the number of iterations used in storage key derivation (default is 16384)",
 					Argument: "<i>",
 				},
 			},
@@ -1671,7 +1678,7 @@ func main() {
 				},
 				cli.IntFlag{
 					Name:     "iterations",
-					Usage:    "the number of iterations used in storage key deriviation (default is 16384)",
+					Usage:    "the number of iterations used in storage key derivation (default is 16384)",
 					Argument: "<i>",
 				},
 				cli.StringFlag{
@@ -1772,7 +1779,7 @@ func main() {
 				cli.IntFlag{
 					Name:     "threads",
 					Value:    1,
-					Usage:    "number of downloading threads",
+					Usage:    "number of uploading threads",
 					Argument: "<n>",
 				},
 			},
@@ -1840,13 +1847,17 @@ func main() {
 			Usage:    "enable the profiling tool and listen on the specified address:port",
 			Argument: "<address:port>",
 		},
-}
+		cli.StringFlag{
+			Name:	"comment",
+			Usage:	"add a comment to identify the process",
+		},
+	}
 
 	app.HideVersion = true
 	app.Name = "duplicacy"
 	app.HelpName = "duplicacy"
 	app.Usage = "A new generation cloud backup tool based on lock-free deduplication"
-	app.Version = "2.0.10"
+	app.Version = "2.1.0"
 
 	// If the program is interrupted, call the RunAtError function.
 	c := make(chan os.Signal, 1)

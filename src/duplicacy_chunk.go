@@ -11,6 +11,7 @@ import (
 	"crypto/sha512"
 	"fmt"
 	"hash"
+	"os"
 	"runtime"
 
 	"github.com/aead/skein"
@@ -256,6 +257,17 @@ func (chunk *Chunk) Encrypt(encryptionKey []byte, derivationKey string) (err err
 	chunk.buffer, encryptedBuffer = encryptedBuffer, chunk.buffer
 
 	return nil
+}
+
+// This is to ensure compability with Vertical Backup, which still uses HMAC-SHA256 (instead of HMAC-BLAKE2) to
+// derive the key used to encrypt/decrypt files and chunks.
+
+var DecryptWithHMACSHA256 = false
+
+func init() {
+	if value, found := os.LookupEnv("DUPLICACY_DECRYPT_WITH_HMACSHA256"); found && value != "0" {
+		DecryptWithHMACSHA256 = true
+	}
 }
 
 // Decrypt decrypts the encrypted data stored in the chunk buffer.  If derivationKey is not nil, the actual
