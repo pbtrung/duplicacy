@@ -4,13 +4,12 @@ The following features are added to this fork:
 * Encryption: Threefish with 1024 bit key
 * Password hashing: Argon2
 * Compression: zstd
-* **[Sia](https://sia.tech)** support: a decentralized cloud storage platform that uses a blockchain to facilitate payments
 
 Duplicacy is a new generation cross-platform cloud backup tool based on the idea of [Lock-Free Deduplication](https://github.com/gilbertchen/duplicacy/wiki/Lock-Free-Deduplication).  It is the only cloud backup tool that allows multiple computers to back up to the same storage simultaneously without using any locks (thus readily amenable to various cloud storage services).
 
 ## Features
 
-Duplicacy currently supports major cloud storage providers (Amazon S3, Google Cloud Storage, Microsoft Azure, Dropbox, Backblaze B2, Google Drive, Microsoft OneDrive, Hubic, and Sia) and offers all essential features of a modern backup tool:
+Duplicacy currently supports major cloud storage providers (Amazon S3, Google Cloud Storage, Microsoft Azure, Dropbox, Backblaze B2, Google Drive, Microsoft OneDrive, Hubic) and offers all essential features of a modern backup tool:
 
 * Duplicacy is the *only* cloud backup tool that allows multiple computers to back up to the same cloud storage, taking advantage of cross-computer deduplication whenever possible, without direct communication among them.  This feature literally turns any cloud storage server supporting only a basic set of file operations into a sophisticated deduplication-aware server.  
 
@@ -40,7 +39,6 @@ With Duplicacy, you can back up files to local or networked drives, SFTP servers
 * Microsoft Azure
 * Microsoft OneDrive
 * SFTP
-* **[Sia](https://sia.tech)**
 * Wasabi
 
 Please consult the [wiki page](https://github.com/gilbertchen/duplicacy/wiki/Storage-Backends) on how to set up Duplicacy to work with each cloud storage.
